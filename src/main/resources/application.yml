@@ -5,10 +5,17 @@ spring:
   application:
     name: concurrent-balance-service
   datasource:
-    url: jdbc:h2:file:./data/balance
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/balance}
+    username: ${SPRING_DATASOURCE_USERNAME:balance}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 5000
+      validation-timeout: 2000
+      transaction-isolation: TRANSACTION_READ_COMMITTED
+      # Bound lock contention and statements on every PostgreSQL connection.
+      connection-init-sql: "SET lock_timeout = '5s'; SET statement_timeout = '30s'"
   data:
     redis:
       host: localhost
@@ -19,9 +26,33 @@ spring:
         shutdown-timeout: 100ms
       repositories:
         enabled: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+        delivery.timeout.ms: 10000
+        request.timeout.ms: 5000
+        max.block.ms: 2000
+        linger.ms: 5
+    admin:
+      fail-fast: false
+      properties:
+        request.timeout.ms: 5000
+        default.api.timeout.ms: 5000
   sql:
     init:
-      mode: always
+      mode: never
+  flyway:
+    enabled: true
+    clean-disabled: true
+  jdbc:
+    template:
+      query-timeout: 30s
 
 server:
   port: 8080
@@ -45,3 +76,18 @@ management:
       group:
         readiness:
           include: readinessState,db
+
+balance:
+  kafka:
+    enabled: ${BALANCE_KAFKA_ENABLED:false}
+    # Provision production topics through infrastructure; Compose enables local creation.
+    create-topic: false
+    topic: balance.account-changed.v1
+    partitions: 6
+    replicas: 3
+    min-in-sync-replicas: 2
+    batch-size: 100
+    send-timeout: 15s
+    poll-interval: 1000
+    publisher:
+      enabled: true

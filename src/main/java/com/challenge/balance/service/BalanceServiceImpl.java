@@ -1,6 +1,8 @@
 package com.challenge.balance.service;
 
 import com.challenge.balance.api.BalanceService;
+import com.challenge.balance.events.BalanceEventRecorder;
+import java.util.Optional;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.domain.TransactionRecord;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 @Service
@@ -25,15 +28,23 @@ public class BalanceServiceImpl implements BalanceService {
     private final AccountLockManager lockManager;
     private final IdempotencyStore idempotencyStore;
     private final TransactionTemplate transactions;
+    private final Optional<BalanceEventRecorder> eventRecorder;
 
     public BalanceServiceImpl(AccountRepository accountRepository, AccountLockManager lockManager,
                               IdempotencyStore idempotencyStore) {
         this(accountRepository, lockManager, idempotencyStore, null);
     }
 
-    @Autowired
     public BalanceServiceImpl(AccountRepository accountRepository, AccountLockManager lockManager,
                               IdempotencyStore idempotencyStore, PlatformTransactionManager transactionManager) {
+        this(accountRepository, lockManager, idempotencyStore, transactionManager, Optional.empty());
+    }
+
+    @Autowired
+    public BalanceServiceImpl(AccountRepository accountRepository, AccountLockManager lockManager,
+                              IdempotencyStore idempotencyStore, PlatformTransactionManager transactionManager,
+                              Optional<BalanceEventRecorder> eventRecorder) {
+        this.eventRecorder = eventRecorder;
         this.accountRepository = accountRepository;
         this.lockManager = lockManager;
         this.idempotencyStore = idempotencyStore;
@@ -101,6 +112,9 @@ public class BalanceServiceImpl implements BalanceService {
             }
             mutation.accept(primary, secondary);
             idempotencyStore.record(record);
+            if (eventRecorder.isPresent()) {
+                eventRecorder.get().record(record, primary, secondary);
+            }
         };
         if (transactions == null) {
             action.run();

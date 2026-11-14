@@ -38,7 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class BalanceServiceIntegrationTest {
+class BalanceServiceIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private BalanceService service;

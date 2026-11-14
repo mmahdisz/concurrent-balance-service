@@ -1,0 +1,8 @@
+spring:
+  datasource:
+    # ServiceConnection supplies the container's actual connection details.
+    password: test
+
+idempotency:
+  redis:
+    enabled: false

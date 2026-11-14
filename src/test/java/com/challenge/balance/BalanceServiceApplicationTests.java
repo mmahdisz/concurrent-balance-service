@@ -14,7 +14,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * missing-bean error.
  */
 @SpringBootTest
-class BalanceServiceApplicationTests {
+class BalanceServiceApplicationTests extends PostgresIntegrationTest {
 
     @Autowired
     private BalanceService balanceService;

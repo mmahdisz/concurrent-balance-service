@@ -26,15 +26,14 @@ import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/** Opt-in protocol/expiry verification against a real Redis server, with isolated keys and H2. */
+/** Opt-in protocol/expiry verification against a real Redis server, with isolated keys and PostgreSQL. */
 @SpringBootTest(properties = {
         "idempotency.redis.enabled=true", "idempotency.redis.ttl=2s",
         "spring.data.redis.connect-timeout=250ms", "spring.data.redis.timeout=250ms",
-        "spring.data.redis.repositories.enabled=false",
-        "spring.datasource.url=jdbc:h2:mem:redis-live-tests;DB_CLOSE_DELAY=-1"
+        "spring.data.redis.repositories.enabled=false"
 })
 @EnabledIfEnvironmentVariable(named = "RUN_REDIS_TESTS", matches = "true")
-class RedisLiveIntegrationTest {
+class RedisLiveIntegrationTest extends PostgresIntegrationTest {
 
     private static final String PREFIX = "balance-service:test:" + UUID.randomUUID() + ":v1:";
     @Autowired private BalanceService service;

@@ -42,10 +42,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @SpringBootTest(properties = {
-        "idempotency.redis.enabled=true",
-        "spring.datasource.url=jdbc:h2:mem:redis-idempotency-tests;DB_CLOSE_DELAY=-1"
+        "idempotency.redis.enabled=true"
 })
-class RedisIdempotencyIntegrationTest {
+class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired private BalanceService service;
     @Autowired private IdempotencyStore store;
@@ -198,7 +197,7 @@ class RedisIdempotencyIntegrationTest {
         TransactionRecord winner = new JdbcIdempotencyStore(jdbc).find("shared").orElseThrow();
         TransactionRecord cached = mapper.readValue(cache.values().iterator().next(), TransactionRecord.class);
         assertThat(cached).usingRecursiveComparison().ignoringFields("processedAt").isEqualTo(winner);
-        // H2 rounds timestamps to microseconds; Redis preserves the original Instant precision.
+        // PostgreSQL rounds timestamps to microseconds; Redis preserves the original Instant precision.
         assertThat(cached.processedAt()).isCloseTo(winner.processedAt(),
                 org.assertj.core.api.Assertions.within(1, java.time.temporal.ChronoUnit.MICROS));
     }

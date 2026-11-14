@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class ApiValidationIntegrationTest {
+class ApiValidationIntegrationTest extends PostgresIntegrationTest {
 
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper json;
