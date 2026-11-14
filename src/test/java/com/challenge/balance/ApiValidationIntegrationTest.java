@@ -1,5 +1,6 @@
 package com.challenge.balance;
 
+import java.math.BigDecimal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -133,8 +134,7 @@ class ApiValidationIntegrationTest extends PostgresIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"", "null", "{", "{\"amount\":\"abc\",\"transactionId\":\"tx\"}",
-            "{\"amount\":1.5,\"transactionId\":\"tx\"}",
-            "{\"amount\":9223372036854775808,\"transactionId\":\"tx\"}"})
+            "{\"amount\":true,\"transactionId\":\"tx\"}"})
     void malformedBodiesReturnSafeBadRequest(String body) throws Exception {
         mvc.perform(post("/accounts/A/credit").contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isBadRequest())
@@ -188,25 +188,30 @@ class ApiValidationIntegrationTest extends PostgresIntegrationTest {
     @Test
     void databaseFailureReturnsSafeInternalErrorAndRollsBack() throws Exception {
         jdbc.update("UPDATE accounts SET balance = ? WHERE id = 'B'", Long.MAX_VALUE);
-        mvc.perform(post("/accounts/A/transfer").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"destinationAccountId\":\"B\",\"amount\":1,\"transactionId\":\"tx\"}"))
-                .andExpect(status().isInternalServerError())
-                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
-                .andExpect(jsonPath("$.status").value(500))
-                .andExpect(jsonPath("$.error").value("INTERNAL_SERVER_ERROR"))
-                .andExpect(jsonPath("$.detail").value("An unexpected error occurred."))
-                .andExpect(jsonPath("$.fieldErrors").isEmpty())
-                .andExpect(jsonPath("$.trace").doesNotExist())
-                .andExpect(jsonPath("$.exception").doesNotExist());
-        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'A'", Long.class)).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'B'", Long.class)).isEqualTo(Long.MAX_VALUE);
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_transactions", Integer.class)).isZero();
+        jdbc.execute("ALTER TABLE accounts ADD CONSTRAINT test_balance_limit CHECK (balance <= 9223372036854775807)");
+        try {
+            mvc.perform(post("/accounts/A/transfer").contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"destinationAccountId\":\"B\",\"amount\":1,\"transactionId\":\"tx\"}"))
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.status").value(500))
+                    .andExpect(jsonPath("$.error").value("INTERNAL_SERVER_ERROR"))
+                    .andExpect(jsonPath("$.detail").value("An unexpected error occurred."))
+                    .andExpect(jsonPath("$.fieldErrors").isEmpty())
+                    .andExpect(jsonPath("$.trace").doesNotExist())
+                    .andExpect(jsonPath("$.exception").doesNotExist());
+            assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'A'", BigDecimal.class)).isEqualByComparingTo(BigDecimal.valueOf(1000));
+            assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'B'", BigDecimal.class)).isEqualByComparingTo(BigDecimal.valueOf(Long.MAX_VALUE));
+            assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_transactions", Integer.class)).isZero();
+        } finally {
+            jdbc.execute("ALTER TABLE accounts DROP CONSTRAINT test_balance_limit");
+        }
     }
 
     private void assertUnchanged() {
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM accounts", Integer.class)).isEqualTo(2);
-        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'A'", Long.class)).isEqualTo(1000);
-        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'B'", Long.class)).isEqualTo(200);
+        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'A'", BigDecimal.class)).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(jdbc.queryForObject("SELECT balance FROM accounts WHERE id = 'B'", BigDecimal.class)).isEqualByComparingTo(BigDecimal.valueOf(200));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_transactions", Integer.class)).isZero();
     }
 }

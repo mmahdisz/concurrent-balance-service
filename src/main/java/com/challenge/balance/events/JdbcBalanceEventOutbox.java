@@ -1,5 +1,6 @@
 package com.challenge.balance.events;
 
+import java.math.BigDecimal;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.domain.OperationType;
 import com.challenge.balance.domain.TransactionRecord;
@@ -29,14 +30,14 @@ public class JdbcBalanceEventOutbox implements BalanceEventRecorder {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("Outbox recording requires the balance database transaction");
         }
-        long delta = transaction.type() == OperationType.CREDIT ? transaction.amount() : -transaction.amount();
+        BigDecimal delta = transaction.type() == OperationType.CREDIT ? transaction.amount() : transaction.amount().negate();
         append(transaction, primary, secondary == null ? null : secondary.getId(), delta);
         if (secondary != null) {
             append(transaction, secondary, primary.getId(), transaction.amount());
         }
     }
 
-    private void append(TransactionRecord transaction, Account account, String counterparty, long delta) {
+    private void append(TransactionRecord transaction, Account account, String counterparty, BigDecimal delta) {
         var event = new BalanceChangedEvent(1, UUID.randomUUID().toString(), transaction.transactionId(),
                 transaction.type(), account.getId(), counterparty, delta, account.getBalance(), transaction.processedAt());
         try {

@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.AccountNotFoundException;
 import com.challenge.balance.exception.InsufficientFundsException;
@@ -26,58 +27,58 @@ class TransferOperationTest {
 
     @Test
     void transferMovesExactAmountBetweenAccounts() {
-        repository.create("A", 1_000);
-        repository.create("B", 500);
+        repository.create("A", BigDecimal.valueOf(1_000));
+        repository.create("B", BigDecimal.valueOf(500));
 
-        service.transfer("A", "B", 300, "TX-1");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(800);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(800));
     }
 
     @Test
     void transferPreservesTotalAcrossBothAccounts() {
-        repository.create("A", 1_000);
-        repository.create("B", 500);
-        long totalBefore = service.getBalance("A") + service.getBalance("B");
+        repository.create("A", BigDecimal.valueOf(1_000));
+        repository.create("B", BigDecimal.valueOf(500));
+        BigDecimal totalBefore = service.getBalance("A").add(service.getBalance("B"));
 
-        service.transfer("A", "B", 300, "TX-1");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "TX-1");
 
-        long totalAfter = service.getBalance("A") + service.getBalance("B");
-        assertThat(totalAfter).isEqualTo(totalBefore);
+        BigDecimal totalAfter = service.getBalance("A").add(service.getBalance("B"));
+        assertThat(totalAfter).isEqualByComparingTo(totalBefore);
     }
 
     @Test
     void transferFailsAndLeavesBothBalancesUnchangedWhenSourceHasInsufficientFunds() {
-        repository.create("A", 100);
-        repository.create("B", 500);
+        repository.create("A", BigDecimal.valueOf(100));
+        repository.create("B", BigDecimal.valueOf(500));
 
-        assertThrows(InsufficientFundsException.class, () -> service.transfer("A", "B", 1_000, "TX-1"));
+        assertThrows(InsufficientFundsException.class, () -> service.transfer("A", "B", BigDecimal.valueOf(1_000), "TX-1"));
 
-        assertThat(service.getBalance("A")).isEqualTo(100);
-        assertThat(service.getBalance("B")).isEqualTo(500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(500));
     }
 
     @Test
     void transferRejectsZeroOrNegativeAmount() {
-        repository.create("A", 1_000);
-        repository.create("B", 500);
+        repository.create("A", BigDecimal.valueOf(1_000));
+        repository.create("B", BigDecimal.valueOf(500));
 
-        assertThrows(InvalidAmountException.class, () -> service.transfer("A", "B", 0, "TX-1"));
+        assertThrows(InvalidAmountException.class, () -> service.transfer("A", "B", BigDecimal.valueOf(0), "TX-1"));
     }
 
     @Test
     void transferRejectsUnknownSourceAccount() {
-        repository.create("B", 500);
+        repository.create("B", BigDecimal.valueOf(500));
 
-        assertThrows(AccountNotFoundException.class, () -> service.transfer("UNKNOWN", "B", 100, "TX-1"));
+        assertThrows(AccountNotFoundException.class, () -> service.transfer("UNKNOWN", "B", BigDecimal.valueOf(100), "TX-1"));
     }
 
     @Test
     void transferRejectsUnknownDestinationAccount() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(AccountNotFoundException.class, () -> service.transfer("A", "UNKNOWN", 100, "TX-1"));
+        assertThrows(AccountNotFoundException.class, () -> service.transfer("A", "UNKNOWN", BigDecimal.valueOf(100), "TX-1"));
     }
 
     /**
@@ -89,9 +90,9 @@ class TransferOperationTest {
      */
     @Test
     void transferRejectsSameSourceAndDestination() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(SameAccountTransferException.class, () -> service.transfer("A", "A", 100, "TX-1"));
-        assertThat(service.getBalance("A")).isEqualTo(1_000);
+        assertThrows(SameAccountTransferException.class, () -> service.transfer("A", "A", BigDecimal.valueOf(100), "TX-1"));
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_000));
     }
 }

@@ -1,43 +1,47 @@
 package com.challenge.balance.domain;
 
-import java.util.concurrent.atomic.AtomicLong;
-
+import com.challenge.balance.exception.InsufficientFundsException;
+import com.challenge.balance.exception.InvalidAmountException;
+import java.math.BigDecimal;
 
 public final class Account {
-
     private final String id;
-    private final AtomicLong balance;
+    private volatile BigDecimal balance;
 
-    public Account(
-            String id,
-            long initialBalance
-    ) {
-        if (id == null || id.isBlank())
+    public Account(String id, BigDecimal initialBalance) {
+        if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Account id must not be blank");
-
-        if (initialBalance < 0)
-            throw new IllegalArgumentException("Initial balance must not be negative");
-
+        }
+        if (initialBalance == null || initialBalance.signum() < 0) {
+            throw new IllegalArgumentException("Initial balance must not be null or negative");
+        }
         this.id = id;
-        this.balance = new AtomicLong(initialBalance);
+        this.balance = initialBalance;
     }
 
-    public String getId() {
-        return id;
+    public String getId() { return id; }
+
+    /** Safe to call without holding the account lock. BigDecimal is immutable. */
+    public BigDecimal getBalance() { return balance; }
+
+    /** Caller must hold this account's lock. */
+    public void credit(BigDecimal amount) {
+        validateAmount(amount);
+        balance = balance.add(amount);
     }
 
-    /** Safe to call without holding the account lock. */
-    public long getBalance() {
-        return balance.get();
+    /** Caller must hold this account's lock. */
+    public void debit(BigDecimal amount) {
+        validateAmount(amount);
+        if (balance.compareTo(amount) < 0) {
+            throw new InsufficientFundsException(id, amount, balance);
+        }
+        balance = balance.subtract(amount);
     }
 
-    /** Caller MUST hold this account's lock. */
-    public void credit(long amount) {
-        balance.addAndGet(amount);
-    }
-
-    /** Caller MUST hold this account's lock and must have already verified sufficiency. */
-    public void debit(long amount) {
-        balance.addAndGet(-amount);
+    private static void validateAmount(BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) {
+            throw new InvalidAmountException(amount);
+        }
     }
 }

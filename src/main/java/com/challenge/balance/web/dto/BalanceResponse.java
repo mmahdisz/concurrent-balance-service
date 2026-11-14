@@ -1,4 +1,5 @@
 package com.challenge.balance.web.dto;
 
-public record BalanceResponse(String accountId, long balance) {
+import java.math.BigDecimal;
+public record BalanceResponse(String accountId, BigDecimal balance) {
 }

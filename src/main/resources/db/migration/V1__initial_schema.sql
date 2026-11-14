@@ -1,6 +1,6 @@
 CREATE TABLE accounts (
     id VARCHAR(255) PRIMARY KEY,
-    balance BIGINT NOT NULL CHECK (balance >= 0)
+    balance NUMERIC NOT NULL CHECK (balance >= 0)
 );
 
 CREATE TABLE processed_transactions (
@@ -8,7 +8,7 @@ CREATE TABLE processed_transactions (
     operation_type VARCHAR(16) NOT NULL,
     primary_account_id VARCHAR(255) NOT NULL REFERENCES accounts(id),
     secondary_account_id VARCHAR(255) REFERENCES accounts(id),
-    amount BIGINT NOT NULL CHECK (amount > 0),
+    amount NUMERIC NOT NULL CHECK (amount > 0),
     processed_at TIMESTAMP WITH TIME ZONE NOT NULL
 );
 

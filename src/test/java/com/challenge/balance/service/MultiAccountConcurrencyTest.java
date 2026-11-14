@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.InsufficientFundsException;
 import com.challenge.balance.idempotency.InMemoryIdempotencyStore;
@@ -7,11 +8,13 @@ import com.challenge.balance.repository.InMemoryAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -43,7 +46,7 @@ class MultiAccountConcurrencyTest {
         int numAccounts = 20;
         long initial = 1_000;
         for (int i = 0; i < numAccounts; i++) {
-            repository.create("ACC-" + i, initial);
+            repository.create("ACC-" + i, BigDecimal.valueOf(initial));
         }
 
         int opsPerAccount = 200;
@@ -57,7 +60,7 @@ class MultiAccountConcurrencyTest {
                 try {
                     start.await();
                     for (int op = 0; op < opsPerAccount; op++) {
-                        service.credit(accountId, 10, accountId + "-TX-" + op);
+                        service.credit(accountId, BigDecimal.valueOf(10), accountId + "-TX-" + op);
                     }
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
@@ -71,7 +74,7 @@ class MultiAccountConcurrencyTest {
         pool.shutdown();
 
         for (int i = 0; i < numAccounts; i++) {
-            assertThat(service.getBalance("ACC-" + i)).isEqualTo(initial + (long) opsPerAccount * 10);
+            assertThat(service.getBalance("ACC-" + i)).isEqualByComparingTo(BigDecimal.valueOf(initial + (long) opsPerAccount * 10));
         }
     }
 
@@ -85,11 +88,11 @@ class MultiAccountConcurrencyTest {
      * test).
      */
     @Test
-    void concurrentRandomTransfersPreserveTotalBalanceAndNeverGoNegative() throws InterruptedException {
+    void concurrentRandomTransfersPreserveTotalBalanceAndNeverGoNegative() throws Exception {
         int numAccounts = 10;
         long initialEach = 10_000;
         for (int i = 0; i < numAccounts; i++) {
-            repository.create("ACC-" + i, initialEach);
+            repository.create("ACC-" + i, BigDecimal.valueOf(initialEach));
         }
         long totalBefore = (long) numAccounts * initialEach;
 
@@ -100,13 +103,13 @@ class MultiAccountConcurrencyTest {
 
         ExecutorService pool = Executors.newFixedThreadPool(threadCount);
         CountDownLatch start = new CountDownLatch(1);
-        CountDownLatch done = new CountDownLatch(threadCount);
+        List<Future<?>> futures = new ArrayList<>();
         AtomicInteger txSeq = new AtomicInteger();
 
-        for (int t = 0; t < threadCount; t++) {
-            Random rnd = new Random(seeds.get(t));
-            pool.submit(() -> {
-                try {
+        try {
+            for (int t = 0; t < threadCount; t++) {
+                Random rnd = new Random(seeds.get(t));
+                futures.add(pool.submit(() -> {
                     start.await();
                     for (int op = 0; op < opsPerThread; op++) {
                         int a = rnd.nextInt(numAccounts);
@@ -117,29 +120,30 @@ class MultiAccountConcurrencyTest {
                         long amount = 1 + rnd.nextInt(50);
                         String txId = "TX-MULTI-" + txSeq.incrementAndGet();
                         try {
-                            service.transfer("ACC-" + a, "ACC-" + b, amount, txId);
+                            service.transfer("ACC-" + a, "ACC-" + b, BigDecimal.valueOf(amount), txId);
                         } catch (InsufficientFundsException expectedSometimes) {
                             // fine - not every random transfer has enough balance behind it
                         }
                     }
-                } catch (InterruptedException ignored) {
-                    Thread.currentThread().interrupt();
-                } finally {
-                    done.countDown();
-                }
-            });
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
         }
-        start.countDown();
-        assertThat(done.await(30, TimeUnit.SECONDS)).isTrue();
-        pool.shutdown();
 
-        long totalAfter = 0;
+        BigDecimal totalAfter = BigDecimal.ZERO;
         for (int i = 0; i < numAccounts; i++) {
-            long balance = service.getBalance("ACC-" + i);
-            assertThat(balance).isGreaterThanOrEqualTo(0);
-            totalAfter += balance;
+            BigDecimal balance = service.getBalance("ACC-" + i);
+            assertThat(balance).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+            totalAfter = totalAfter.add(balance);
         }
-        assertThat(totalAfter).isEqualTo(totalBefore);
+        assertThat(totalAfter).isEqualByComparingTo(BigDecimal.valueOf(totalBefore));
     }
 
     /**
@@ -153,8 +157,8 @@ class MultiAccountConcurrencyTest {
      */
     @Test
     void bidirectionalConcurrentTransfersCompleteWithoutDeadlock() throws InterruptedException {
-        repository.create("A", 1_000_000);
-        repository.create("B", 1_000_000);
+        repository.create("A", BigDecimal.valueOf(1_000_000));
+        repository.create("B", BigDecimal.valueOf(1_000_000));
         int iterationsPerDirection = 3_000;
 
         ExecutorService pool = Executors.newFixedThreadPool(2);
@@ -163,13 +167,13 @@ class MultiAccountConcurrencyTest {
 
         pool.submit(() -> {
             for (int i = 0; i < iterationsPerDirection; i++) {
-                service.transfer("A", "B", 1, "TX-AB-" + txSeq.incrementAndGet());
+                service.transfer("A", "B", BigDecimal.valueOf(1), "TX-AB-" + txSeq.incrementAndGet());
             }
             done.countDown();
         });
         pool.submit(() -> {
             for (int i = 0; i < iterationsPerDirection; i++) {
-                service.transfer("B", "A", 1, "TX-BA-" + txSeq.incrementAndGet());
+                service.transfer("B", "A", BigDecimal.valueOf(1), "TX-BA-" + txSeq.incrementAndGet());
             }
             done.countDown();
         });
@@ -178,6 +182,6 @@ class MultiAccountConcurrencyTest {
         pool.shutdownNow();
 
         assertThat(completed).as("bidirectional transfers must not deadlock").isTrue();
-        assertThat(service.getBalance("A") + service.getBalance("B")).isEqualTo(2_000_000L);
+        assertThat(service.getBalance("A").add(service.getBalance("B"))).isEqualByComparingTo(BigDecimal.valueOf(2_000_000L));
     }
 }
