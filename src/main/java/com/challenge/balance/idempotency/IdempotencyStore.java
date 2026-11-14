@@ -1,25 +1,14 @@
 package com.challenge.balance.idempotency;
 
 import com.challenge.balance.domain.TransactionRecord;
-import org.springframework.stereotype.Component;
 
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
-@Component
-public class IdempotencyStore {
+/** Completed operations. Durable implementations must join the balance transaction. */
+public interface IdempotencyStore {
 
-    private final ConcurrentHashMap<String, TransactionRecord> processed = new ConcurrentHashMap<>();
+    Optional<TransactionRecord> find(String transactionId);
 
-    public Optional<TransactionRecord> find(
-            String transactionId
-    ) {
-        return Optional.ofNullable(processed.get(transactionId));
-    }
-
-    public void record(
-            TransactionRecord record
-    ) {
-        processed.put(record.transactionId(), record);
-    }
+    /** Insert a new record; never replace the receipt for an existing transaction ID. */
+    void record(TransactionRecord record);
 }

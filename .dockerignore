@@ -1,0 +1,7 @@
+# Only build inputs are sent to Docker; local databases, credentials, and IDE files stay out.
+*
+!Dockerfile
+!.dockerignore
+!pom.xml
+!src/
+!src/**

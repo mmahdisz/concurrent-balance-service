@@ -1,6 +1,47 @@
 spring:
+  jackson:
+    deserialization:
+      accept-float-as-int: false
   application:
     name: concurrent-balance-service
+  datasource:
+    url: jdbc:h2:file:./data/balance
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      connect-timeout: 250ms
+      timeout: 250ms
+      lettuce:
+        shutdown-timeout: 100ms
+      repositories:
+        enabled: false
+  sql:
+    init:
+      mode: always
 
 server:
   port: 8080
+
+idempotency:
+  redis:
+    enabled: true
+    ttl: 24h
+    key-prefix: ${IDEMPOTENCY_REDIS_KEY_PREFIX:balance-service:local:idempotency:v1:}
+    failure-backoff: 5s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db

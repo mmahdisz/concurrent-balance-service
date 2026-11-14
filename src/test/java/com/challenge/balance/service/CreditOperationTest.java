@@ -3,7 +3,7 @@ package com.challenge.balance.service;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.AccountNotFoundException;
 import com.challenge.balance.exception.InvalidAmountException;
-import com.challenge.balance.idempotency.IdempotencyStore;
+import com.challenge.balance.idempotency.InMemoryIdempotencyStore;
 import com.challenge.balance.repository.InMemoryAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +19,7 @@ class CreditOperationTest {
     @BeforeEach
     void setUp() {
         repository = new InMemoryAccountRepository();
-        service = new BalanceServiceImpl(repository, new AccountLockManager(), new IdempotencyStore());
+        service = new BalanceServiceImpl(repository, new AccountLockManager(), new InMemoryIdempotencyStore());
     }
 
     @Test

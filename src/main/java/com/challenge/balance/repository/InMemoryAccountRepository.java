@@ -3,11 +3,9 @@ package com.challenge.balance.repository;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.exception.AccountAlreadyExistsException;
 import com.challenge.balance.exception.AccountNotFoundException;
-import org.springframework.stereotype.Repository;
 
 import java.util.concurrent.ConcurrentHashMap;
 
-@Repository
 public class InMemoryAccountRepository implements AccountRepository {
 
     private final ConcurrentHashMap<String, Account> accounts = new ConcurrentHashMap<>();
