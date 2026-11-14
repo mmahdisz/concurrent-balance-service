@@ -2,7 +2,7 @@ package com.challenge.balance.concurrency;
 
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.IntStream;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
 
@@ -10,10 +10,18 @@ import java.util.function.Supplier;
 @Component
 public class AccountLockManager {
 
-    private final ConcurrentHashMap<String, ReentrantLock> locks = new ConcurrentHashMap<>();
+    // Fixed stripes bound memory even when callers supply unlimited unknown account IDs.
+    private static final int STRIPE_COUNT = 1024;
+    private final ReentrantLock[] locks = IntStream.range(0, STRIPE_COUNT)
+            .mapToObj(ignored -> new ReentrantLock()).toArray(ReentrantLock[]::new);
 
     private ReentrantLock lockFor(String accountId) {
-        return locks.computeIfAbsent(accountId, id -> new ReentrantLock());
+        return locks[stripeIndex(accountId)];
+    }
+
+    private int stripeIndex(String accountId) {
+        int hash = accountId.hashCode();
+        return (hash ^ (hash >>> 16)) & (STRIPE_COUNT - 1);
     }
 
     public <T> T withLock(String accountId, Supplier<T> action) {
@@ -35,11 +43,11 @@ public class AccountLockManager {
 
 
     public <T> T withLocks(String idA, String idB, Supplier<T> action) {
-        String first = idA.compareTo(idB) <= 0 ? idA : idB;
-        String second = idA.compareTo(idB) <= 0 ? idB : idA;
-
-        ReentrantLock lock1 = lockFor(first);
-        ReentrantLock lock2 = lockFor(second);
+        // Order actual stripes: account-ID order can deadlock when different IDs collide.
+        int stripeA = stripeIndex(idA);
+        int stripeB = stripeIndex(idB);
+        ReentrantLock lock1 = locks[Math.min(stripeA, stripeB)];
+        ReentrantLock lock2 = locks[Math.max(stripeA, stripeB)];
 
         lock1.lock();
         try {

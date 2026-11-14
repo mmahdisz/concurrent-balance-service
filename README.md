@@ -129,7 +129,7 @@ bootstrap role. Back up PostgreSQL regularly and verify restores.
 ~~~text
 api/            BalanceService interface
 domain/        Account, OperationType, TransactionRecord
-concurrency/    AccountLockManager: per-account JVM locks, sorted transfer lock order
+concurrency/    AccountLockManager: bounded JVM lock stripes, sorted stripe lock order
 idempotency/    RedisIdempotencyStore: Redis cache backed by durable JDBC receipts
 repository/     JdbcAccountRepository: account reads, row locks, and writes
 service/        BalanceServiceImpl: validation and transactional balance operations
@@ -146,11 +146,14 @@ and the optional Kafka outbox recorder.
 
 ## Concurrency and atomicity
 
-Each operation holds the relevant JVM account locks, starts a database transaction,
+Each operation holds the relevant JVM lock stripes, starts a database transaction,
 and reads the account rows with SELECT FOR UPDATE. Transfer locks both rows in
 account ID order, preventing opposite transfers from forming a lock cycle even
 when callers use separate service instances with independent JVM lock managers.
-Unrelated accounts can be updated concurrently.
+Unrelated accounts can be updated concurrently unless their IDs map to the same JVM
+lock stripe. The 1,024 fixed stripes bound lock memory even for requests targeting
+nonexistent accounts. Transfers acquire stripes in stripe-index order; database row
+locks retain account-ID order.
 
 Balances are loaded after obtaining the database locks so a waiting operation
 uses the latest committed values. Sufficiency checks, all account updates, and
