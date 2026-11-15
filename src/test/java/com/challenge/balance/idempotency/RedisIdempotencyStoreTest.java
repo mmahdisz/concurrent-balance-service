@@ -1,5 +1,6 @@
 package com.challenge.balance.idempotency;
 
+import java.math.BigDecimal;
 import com.challenge.balance.domain.TransactionRecord;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.json.JsonMapper;
@@ -33,7 +34,7 @@ class RedisIdempotencyStoreTest {
     @Mock private StringRedisTemplate redis;
     @Mock private ValueOperations<String, String> values;
     private final ObjectMapper mapper = JsonMapper.builder().addModule(new JavaTimeModule()).build();
-    private final TransactionRecord receipt = TransactionRecord.credit("TX-1", "A", 100);
+    private final TransactionRecord receipt = TransactionRecord.credit("TX-1", "A", new BigDecimal("100.125"));
     private RedisIdempotencyStore store;
 
     @BeforeEach

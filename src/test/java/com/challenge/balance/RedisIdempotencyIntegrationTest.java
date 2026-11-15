@@ -1,5 +1,6 @@
 package com.challenge.balance;
 
+import java.math.BigDecimal;
 import com.challenge.balance.api.BalanceService;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.domain.TransactionRecord;
@@ -70,61 +71,61 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
             cache.put(call.getArgument(0), call.getArgument(1));
             return null;
         }).when(values).set(anyString(), anyString(), any(Duration.class));
-        accounts.create("A", 1000);
-        accounts.create("B", 200);
+        accounts.create("A", BigDecimal.valueOf(1000));
+        accounts.create("B", BigDecimal.valueOf(200));
     }
 
     @Test
     void springSelectsRedisAndCacheLossStillPreventsDuplicateTransfers() {
         assertThat(store).isInstanceOf(RedisIdempotencyStore.class);
-        service.transfer("A", "B", 300, "transfer");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "transfer");
         assertThat(cache).hasSize(1);
 
-        service.transfer("A", "B", 300, "transfer");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "transfer");
         cache.clear(); // Expiration, eviction, or loss of Redis's entire dataset.
-        independentService().transfer("A", "B", 300, "transfer");
+        independentService().transfer("A", "B", BigDecimal.valueOf(300), "transfer");
 
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(500));
         assertThat(cache).hasSize(1);
         assertThat(transactionCount()).isEqualTo(1);
     }
 
     @Test
     void cachedReceiptRejectsChangedAmountOperationAndAccounts() {
-        service.credit("A", 100, "used");
+        service.credit("A", BigDecimal.valueOf(100), "used");
 
-        assertThatThrownBy(() -> service.credit("A", 200, "used"))
+        assertThatThrownBy(() -> service.credit("A", BigDecimal.valueOf(200), "used"))
                 .isInstanceOf(IdempotencyConflictException.class);
-        assertThatThrownBy(() -> service.debit("A", 100, "used"))
+        assertThatThrownBy(() -> service.debit("A", BigDecimal.valueOf(100), "used"))
                 .isInstanceOf(IdempotencyConflictException.class);
-        assertThatThrownBy(() -> service.credit("B", 100, "used"))
+        assertThatThrownBy(() -> service.credit("B", BigDecimal.valueOf(100), "used"))
                 .isInstanceOf(IdempotencyConflictException.class);
 
-        assertThat(service.getBalance("A")).isEqualTo(1100);
-        assertThat(service.getBalance("B")).isEqualTo(200);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1100));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(200));
         assertThat(transactionCount()).isEqualTo(1);
     }
 
     @Test
     void failedOperationsRemainRetryableAndAreNotCached() {
-        assertThatThrownBy(() -> service.transfer("A", "B", 1200, "retry"))
+        assertThatThrownBy(() -> service.transfer("A", "B", BigDecimal.valueOf(1200), "retry"))
                 .isInstanceOf(InsufficientFundsException.class);
         assertThat(cache).isEmpty();
         assertThat(transactionCount()).isZero();
 
-        service.credit("A", 500, "funding");
-        service.transfer("A", "B", 1200, "retry");
+        service.credit("A", BigDecimal.valueOf(500), "funding");
+        service.transfer("A", "B", BigDecimal.valueOf(1200), "retry");
 
-        assertThat(service.getBalance("A")).isEqualTo(300);
-        assertThat(service.getBalance("B")).isEqualTo(1400);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(300));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(1400));
         assertThat(cache).hasSize(2);
     }
 
     @Test
     void rollbackAfterInsertAndReadNeverPublishesUncommittedReceipt() {
         new TransactionTemplate(transactionManager).executeWithoutResult(status -> {
-            store.record(TransactionRecord.credit("rollback", "A", 100));
+            store.record(TransactionRecord.credit("rollback", "A", BigDecimal.valueOf(100)));
             assertThat(store.find("rollback")).isPresent();
             assertThat(cache).isEmpty();
             status.setRollbackOnly();
@@ -132,8 +133,8 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(cache).isEmpty();
         assertThat(transactionCount()).isZero();
-        service.credit("A", 100, "rollback");
-        assertThat(service.getBalance("A")).isEqualTo(1100);
+        service.credit("A", BigDecimal.valueOf(100), "rollback");
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1100));
         assertThat(cache).hasSize(1);
     }
 
@@ -142,10 +143,10 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
         when(values.get(anyString())).thenThrow(new RedisConnectionFailureException("offline"));
         BalanceService isolated = independentService();
 
-        isolated.credit("A", 100, "offline");
-        isolated.credit("A", 100, "offline");
+        isolated.credit("A", BigDecimal.valueOf(100), "offline");
+        isolated.credit("A", BigDecimal.valueOf(100), "offline");
 
-        assertThat(service.getBalance("A")).isEqualTo(1100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1100));
         assertThat(transactionCount()).isEqualTo(1);
         assertThat(cache).isEmpty();
         verify(values, times(1)).get(anyString());
@@ -157,10 +158,10 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
                 .when(values).set(anyString(), anyString(), any(Duration.class));
         BalanceService isolated = independentService();
 
-        isolated.credit("A", 100, "committed");
-        isolated.credit("A", 100, "committed");
+        isolated.credit("A", BigDecimal.valueOf(100), "committed");
+        isolated.credit("A", BigDecimal.valueOf(100), "committed");
 
-        assertThat(service.getBalance("A")).isEqualTo(1100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1100));
         assertThat(transactionCount()).isEqualTo(1);
     }
 
@@ -168,10 +169,10 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
     void concurrentDuplicatesAcrossInstancesApplyOnce() throws Exception {
         BalanceService other = independentService();
 
-        concurrently(20, i -> (i % 2 == 0 ? service : other).transfer("A", "B", 300, "duplicate"));
+        concurrently(20, i -> (i % 2 == 0 ? service : other).transfer("A", "B", BigDecimal.valueOf(300), "duplicate"));
 
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(500));
         assertThat(transactionCount()).isEqualTo(1);
         assertThat(cache).hasSize(1);
     }
@@ -183,7 +184,7 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
         AtomicInteger conflicts = new AtomicInteger();
         concurrently(2, i -> {
             try {
-                (i == 0 ? service : other).credit(i == 0 ? "A" : "B", 100, "shared");
+                (i == 0 ? service : other).credit(i == 0 ? "A" : "B", BigDecimal.valueOf(100), "shared");
                 successes.incrementAndGet();
             } catch (IdempotencyConflictException ex) {
                 conflicts.incrementAndGet();
@@ -192,7 +193,7 @@ class RedisIdempotencyIntegrationTest extends PostgresIntegrationTest {
 
         assertThat(successes.get()).isEqualTo(1);
         assertThat(conflicts.get()).isEqualTo(1);
-        assertThat(service.getBalance("A") + service.getBalance("B")).isEqualTo(1300);
+        assertThat(service.getBalance("A").add(service.getBalance("B"))).isEqualByComparingTo(BigDecimal.valueOf(1300));
         assertThat(transactionCount()).isEqualTo(1);
         TransactionRecord winner = new JdbcIdempotencyStore(jdbc).find("shared").orElseThrow();
         TransactionRecord cached = mapper.readValue(cache.values().iterator().next(), TransactionRecord.class);

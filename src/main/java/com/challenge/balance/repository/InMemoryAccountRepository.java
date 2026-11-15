@@ -1,5 +1,6 @@
 package com.challenge.balance.repository;
 
+import java.math.BigDecimal;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.exception.AccountAlreadyExistsException;
 import com.challenge.balance.exception.AccountNotFoundException;
@@ -24,7 +25,7 @@ public class InMemoryAccountRepository implements AccountRepository {
     @Override
     public Account create(
             String accountId,
-            long initialBalance
+            BigDecimal initialBalance
     ) {
         Account account = new Account(accountId, initialBalance);
         Account existing = accounts.putIfAbsent(accountId, account);

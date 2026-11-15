@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.AccountNotFoundException;
 import com.challenge.balance.exception.InvalidAmountException;
@@ -24,31 +25,31 @@ class CreditOperationTest {
 
     @Test
     void creditIncreasesBalance() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.credit("A", 500, "TX-1");
+        service.credit("A", BigDecimal.valueOf(500), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(1_500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_500));
     }
 
     @Test
     void creditRejectsZeroAmount() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(InvalidAmountException.class, () -> service.credit("A", 0, "TX-1"));
-        assertThat(service.getBalance("A")).isEqualTo(1_000);
+        assertThrows(InvalidAmountException.class, () -> service.credit("A", BigDecimal.valueOf(0), "TX-1"));
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_000));
     }
 
     @Test
     void creditRejectsNegativeAmount() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(InvalidAmountException.class, () -> service.credit("A", -50, "TX-1"));
-        assertThat(service.getBalance("A")).isEqualTo(1_000);
+        assertThrows(InvalidAmountException.class, () -> service.credit("A", BigDecimal.valueOf(-50), "TX-1"));
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_000));
     }
 
     @Test
     void creditRejectsUnknownAccount() {
-        assertThrows(AccountNotFoundException.class, () -> service.credit("UNKNOWN", 100, "TX-1"));
+        assertThrows(AccountNotFoundException.class, () -> service.credit("UNKNOWN", BigDecimal.valueOf(100), "TX-1"));
     }
 }

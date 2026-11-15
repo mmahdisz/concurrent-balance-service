@@ -1,5 +1,6 @@
 package com.challenge.balance.domain;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 
@@ -9,14 +10,14 @@ public record TransactionRecord(
         OperationType type,
         String primaryAccountId,
         String secondaryAccountId,
-        long amount,
+        BigDecimal amount,
         Instant processedAt
 ) {
 
     public static TransactionRecord credit(
             String txId,
             String accountId,
-            long amount
+            BigDecimal amount
     ) {
         return new TransactionRecord(txId, OperationType.CREDIT, accountId, null, amount, Instant.now());
     }
@@ -24,7 +25,7 @@ public record TransactionRecord(
     public static TransactionRecord debit(
             String txId,
             String accountId,
-            long amount
+            BigDecimal amount
     ) {
         return new TransactionRecord(txId, OperationType.DEBIT, accountId, null, amount, Instant.now());
     }
@@ -33,7 +34,7 @@ public record TransactionRecord(
             String txId,
             String sourceId,
             String destId,
-            long amount
+            BigDecimal amount
     ) {
         return new TransactionRecord(txId, OperationType.TRANSFER, sourceId, destId, amount, Instant.now());
     }
@@ -43,11 +44,11 @@ public record TransactionRecord(
             OperationType type,
             String primaryAccountId,
             String secondaryAccountId,
-            long amount
+            BigDecimal amount
     ) {
         return this.type == type
                 && this.primaryAccountId.equals(primaryAccountId)
                 && Objects.equals(this.secondaryAccountId, secondaryAccountId)
-                && this.amount == amount;
+                && this.amount.compareTo(amount) == 0;
     }
 }

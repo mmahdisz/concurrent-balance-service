@@ -147,7 +147,7 @@ public class RedisIdempotencyStore implements IdempotencyStore {
 
     private static boolean validReceipt(TransactionRecord record, String transactionId) {
         return record != null && transactionId.equals(record.transactionId())
-                && record.type() != null && record.processedAt() != null && record.amount() > 0
+                && record.type() != null && record.processedAt() != null && record.amount() != null && record.amount().signum() > 0
                 && record.primaryAccountId() != null && !record.primaryAccountId().isBlank()
                 && (record.type() == OperationType.TRANSFER
                     ? record.secondaryAccountId() != null && !record.secondaryAccountId().isBlank()

@@ -1,12 +1,12 @@
 package com.challenge.balance.web.dto;
 
-import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
+import com.challenge.balance.web.validation.ValidAccountId;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
-import jakarta.validation.constraints.Size;
 
 public record CreateAccountRequest(
-        @NotBlank @Size(max = 255) String accountId,
-        @NotNull @PositiveOrZero Long initialBalance
+        @ValidAccountId String accountId,
+        @NotNull @PositiveOrZero BigDecimal initialBalance
 ) {
 }

@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.InsufficientFundsException;
 import com.challenge.balance.idempotency.InMemoryIdempotencyStore;
@@ -37,7 +38,7 @@ class SingleAccountConcurrencyTest {
      */
     @RepeatedTest(20)
     void exactlyOneOfTwoConcurrentDebitsExceedingBalanceSucceeds() throws InterruptedException {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
         AtomicInteger succeeded = new AtomicInteger();
         AtomicInteger failed = new AtomicInteger();
@@ -50,7 +51,7 @@ class SingleAccountConcurrencyTest {
             pool.submit(() -> {
                 try {
                     start.await();
-                    service.debit("A", 700, "TX-RACE-" + idx);
+                    service.debit("A", BigDecimal.valueOf(700), "TX-RACE-" + idx);
                     succeeded.incrementAndGet();
                 } catch (InsufficientFundsException e) {
                     failed.incrementAndGet();
@@ -67,8 +68,8 @@ class SingleAccountConcurrencyTest {
 
         assertThat(succeeded.get()).isEqualTo(1);
         assertThat(failed.get()).isEqualTo(1);
-        assertThat(service.getBalance("A")).isGreaterThanOrEqualTo(0);
-        assertThat(service.getBalance("A")).isEqualTo(300); // 1000 - one successful 700 debit
+        assertThat(service.getBalance("A")).isGreaterThanOrEqualTo(BigDecimal.ZERO);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(300));
     }
 
     /**
@@ -82,7 +83,7 @@ class SingleAccountConcurrencyTest {
     @Test
     void thousandConcurrentCreditsOnOneAccountProduceExactExpectedBalance() throws InterruptedException {
         long initial = 100_000;
-        repository.create("A", initial);
+        repository.create("A", BigDecimal.valueOf(initial));
         int operations = 1_000;
         long amountEach = 37;
 
@@ -94,7 +95,7 @@ class SingleAccountConcurrencyTest {
             pool.submit(() -> {
                 try {
                     start.await();
-                    service.credit("A", amountEach, "TX-HC-" + idx);
+                    service.credit("A", BigDecimal.valueOf(amountEach), "TX-HC-" + idx);
                 } catch (InterruptedException ignored) {
                     Thread.currentThread().interrupt();
                 } finally {
@@ -106,7 +107,7 @@ class SingleAccountConcurrencyTest {
         assertThat(done.await(20, TimeUnit.SECONDS)).isTrue();
         pool.shutdown();
 
-        assertThat(service.getBalance("A")).isEqualTo(initial + (long) operations * amountEach);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(initial + (long) operations * amountEach));
     }
 
     /**
@@ -118,7 +119,7 @@ class SingleAccountConcurrencyTest {
      */
     @Test
     void highContentionMixedDebitsNeverProduceANegativeBalance() throws InterruptedException {
-        repository.create("A", 10_000);
+        repository.create("A", BigDecimal.valueOf(10_000));
         int operations = 2_000;
 
         ExecutorService pool = Executors.newFixedThreadPool(64);
@@ -130,7 +131,7 @@ class SingleAccountConcurrencyTest {
                 try {
                     start.await();
                     try {
-                        service.debit("A", 100, "TX-MIX-" + idx);
+                        service.debit("A", BigDecimal.valueOf(100), "TX-MIX-" + idx);
                     } catch (InsufficientFundsException ignored) {
                         // expected once the balance runs low; not a failure
                     }
@@ -145,8 +146,8 @@ class SingleAccountConcurrencyTest {
         assertThat(done.await(20, TimeUnit.SECONDS)).isTrue();
         pool.shutdown();
 
-        assertThat(service.getBalance("A")).isGreaterThanOrEqualTo(0);
+        assertThat(service.getBalance("A")).isGreaterThanOrEqualTo(BigDecimal.ZERO);
         // exactly 100 debits of 100 can succeed against an initial 10,000
-        assertThat(service.getBalance("A")).isEqualTo(0);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(0));
     }
 }

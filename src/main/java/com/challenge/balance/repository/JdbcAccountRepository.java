@@ -1,5 +1,6 @@
 package com.challenge.balance.repository;
 
+import java.math.BigDecimal;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.exception.AccountAlreadyExistsException;
 import com.challenge.balance.exception.AccountNotFoundException;
@@ -28,12 +29,12 @@ public class JdbcAccountRepository implements AccountRepository {
 
     private Account find(String accountId, boolean forUpdate) {
         return jdbc.query("SELECT id, balance FROM accounts WHERE id = ?" + (forUpdate ? " FOR UPDATE" : ""),
-                        (rs, row) -> new Account(rs.getString("id"), rs.getLong("balance")), accountId)
+                        (rs, row) -> new Account(rs.getString("id"), rs.getBigDecimal("balance")), accountId)
                 .stream().findFirst().orElseThrow(() -> new AccountNotFoundException(accountId));
     }
 
     @Override
-    public Account create(String accountId, long initialBalance) {
+    public Account create(String accountId, BigDecimal initialBalance) {
         Account account = new Account(accountId, initialBalance);
         try {
             jdbc.update("INSERT INTO accounts (id, balance) VALUES (?, ?)", accountId, initialBalance);

@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.AccountNotFoundException;
 import com.challenge.balance.exception.InsufficientFundsException;
@@ -25,42 +26,42 @@ class DebitOperationTest {
 
     @Test
     void debitDecreasesBalanceWhenSufficient() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.debit("A", 700, "TX-1");
+        service.debit("A", BigDecimal.valueOf(700), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(300);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(300));
     }
 
     @Test
     void debitFailsAndLeavesBalanceUnchangedWhenInsufficient() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(InsufficientFundsException.class, () -> service.debit("A", 1_200, "TX-1"));
+        assertThrows(InsufficientFundsException.class, () -> service.debit("A", BigDecimal.valueOf(1_200), "TX-1"));
 
-        assertThat(service.getBalance("A")).isEqualTo(1_000);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_000));
     }
 
     @Test
     void debitAtExactBalanceSucceeds() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.debit("A", 1_000, "TX-1");
+        service.debit("A", BigDecimal.valueOf(1_000), "TX-1");
 
         assertThat(service.getBalance("A")).isZero();
     }
 
     @Test
     void debitRejectsZeroOrNegativeAmount() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        assertThrows(InvalidAmountException.class, () -> service.debit("A", 0, "TX-1"));
-        assertThrows(InvalidAmountException.class, () -> service.debit("A", -1, "TX-2"));
-        assertThat(service.getBalance("A")).isEqualTo(1_000);
+        assertThrows(InvalidAmountException.class, () -> service.debit("A", BigDecimal.valueOf(0), "TX-1"));
+        assertThrows(InvalidAmountException.class, () -> service.debit("A", BigDecimal.valueOf(-1), "TX-2"));
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_000));
     }
 
     @Test
     void debitRejectsUnknownAccount() {
-        assertThrows(AccountNotFoundException.class, () -> service.debit("UNKNOWN", 100, "TX-1"));
+        assertThrows(AccountNotFoundException.class, () -> service.debit("UNKNOWN", BigDecimal.valueOf(100), "TX-1"));
     }
 }

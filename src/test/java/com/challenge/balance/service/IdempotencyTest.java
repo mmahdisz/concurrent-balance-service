@@ -1,5 +1,6 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.exception.IdempotencyConflictException;
 import com.challenge.balance.exception.InsufficientFundsException;
@@ -31,37 +32,37 @@ class IdempotencyTest {
 
     @Test
     void repeatedCreditWithSameTransactionIdAppliesOnlyOnce() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.credit("A", 100, "TX-1");
-        service.credit("A", 100, "TX-1");
-        service.credit("A", 100, "TX-1");
+        service.credit("A", BigDecimal.valueOf(100), "TX-1");
+        service.credit("A", BigDecimal.valueOf(100), "TX-1");
+        service.credit("A", BigDecimal.valueOf(100), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(1_100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_100));
     }
 
     @Test
     void repeatedDebitWithSameTransactionIdAppliesOnlyOnce() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.debit("A", 200, "TX-1");
-        service.debit("A", 200, "TX-1");
-        service.debit("A", 200, "TX-1");
+        service.debit("A", BigDecimal.valueOf(200), "TX-1");
+        service.debit("A", BigDecimal.valueOf(200), "TX-1");
+        service.debit("A", BigDecimal.valueOf(200), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(800);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(800));
     }
 
     @Test
     void repeatedTransferWithSameTransactionIdAppliesOnlyOnce() {
-        repository.create("A", 1_000);
-        repository.create("B", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
+        repository.create("B", BigDecimal.valueOf(1_000));
 
-        service.transfer("A", "B", 300, "TX-1");
-        service.transfer("A", "B", 300, "TX-1");
-        service.transfer("A", "B", 300, "TX-1");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "TX-1");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "TX-1");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "TX-1");
 
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(1_300);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(1_300));
     }
 
     @Test
@@ -70,25 +71,25 @@ class IdempotencyTest {
         // therefore never recorded. A later retry of the same transactionId
         // - after the balance has grown enough - is not a "double apply"
         // because nothing was ever applied the first time.
-        repository.create("A", 100);
+        repository.create("A", BigDecimal.valueOf(100));
 
-        assertThrows(InsufficientFundsException.class, () -> service.debit("A", 500, "TX-1"));
+        assertThrows(InsufficientFundsException.class, () -> service.debit("A", BigDecimal.valueOf(500), "TX-1"));
 
-        service.credit("A", 1_000, "TX-2");
-        service.debit("A", 500, "TX-1"); // retry, now succeeds
+        service.credit("A", BigDecimal.valueOf(1_000), "TX-2");
+        service.debit("A", BigDecimal.valueOf(500), "TX-1"); // retry, now succeeds
 
-        assertThat(service.getBalance("A")).isEqualTo(600);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(600));
     }
 
     @Test
     void reusingATransactionIdWithDifferentParametersIsRejected() {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
 
-        service.credit("A", 100, "TX-1");
+        service.credit("A", BigDecimal.valueOf(100), "TX-1");
 
-        assertThrows(IdempotencyConflictException.class, () -> service.credit("A", 200, "TX-1"));
+        assertThrows(IdempotencyConflictException.class, () -> service.credit("A", BigDecimal.valueOf(200), "TX-1"));
         // the original, successfully-applied effect must not be touched
-        assertThat(service.getBalance("A")).isEqualTo(1_100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_100));
     }
 
     // --- Concurrent duplicates -----------------------------------------------
@@ -97,34 +98,34 @@ class IdempotencyTest {
 
     @Test
     void concurrentDuplicateCreditsApplyExactlyOnce() throws InterruptedException {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
         int callers = 50;
 
-        runConcurrently(callers, i -> service.credit("A", 500, "TX-DUP"));
+        runConcurrently(callers, i -> service.credit("A", BigDecimal.valueOf(500), "TX-DUP"));
 
-        assertThat(service.getBalance("A")).isEqualTo(1_500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1_500));
     }
 
     @Test
     void concurrentDuplicateDebitsApplyExactlyOnce() throws InterruptedException {
-        repository.create("A", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
         int callers = 50;
 
-        runConcurrently(callers, i -> service.debit("A", 500, "TX-DUP"));
+        runConcurrently(callers, i -> service.debit("A", BigDecimal.valueOf(500), "TX-DUP"));
 
-        assertThat(service.getBalance("A")).isEqualTo(500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(500));
     }
 
     @Test
     void concurrentDuplicateTransfersApplyExactlyOnce() throws InterruptedException {
-        repository.create("A", 1_000);
-        repository.create("B", 1_000);
+        repository.create("A", BigDecimal.valueOf(1_000));
+        repository.create("B", BigDecimal.valueOf(1_000));
         int callers = 50;
 
-        runConcurrently(callers, i -> service.transfer("A", "B", 300, "TX-DUP"));
+        runConcurrently(callers, i -> service.transfer("A", "B", BigDecimal.valueOf(300), "TX-DUP"));
 
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(1_300);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(1_300));
     }
 
     /** Fires {@code callers} threads at {@code task} as simultaneously as possible. */

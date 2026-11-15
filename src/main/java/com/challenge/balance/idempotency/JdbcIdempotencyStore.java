@@ -1,5 +1,6 @@
 package com.challenge.balance.idempotency;
 
+import java.math.BigDecimal;
 import com.challenge.balance.domain.OperationType;
 import com.challenge.balance.domain.TransactionRecord;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -26,7 +27,7 @@ public class JdbcIdempotencyStore implements IdempotencyStore {
                                 OperationType.valueOf(rs.getString("operation_type")),
                                 rs.getString("primary_account_id"),
                                 rs.getString("secondary_account_id"),
-                                rs.getLong("amount"),
+                                rs.getBigDecimal("amount"),
                                 rs.getObject("processed_at", OffsetDateTime.class).toInstant()), transactionId)
                 .stream().findFirst();
     }

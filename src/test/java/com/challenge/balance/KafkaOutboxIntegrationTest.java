@@ -1,5 +1,6 @@
 package com.challenge.balance;
 
+import java.math.BigDecimal;
 import com.challenge.balance.api.BalanceService;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.events.*;
@@ -67,19 +68,19 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
         jdbc.update("DELETE FROM kafka_outbox");
         jdbc.update("DELETE FROM processed_transactions");
         jdbc.update("DELETE FROM accounts");
-        accounts.create("A", 1000);
-        accounts.create("B", 100);
+        accounts.create("A", BigDecimal.valueOf(1000));
+        accounts.create("B", BigDecimal.valueOf(100));
     }
 
     @Test
     void duplicateAndConflictingRequestsDoNotCreateExtraEvents() {
-        service.credit("A", 50, "credit");
-        service.credit("A", 50, "credit");
-        assertThatThrownBy(() -> service.credit("A", 51, "credit"))
+        service.credit("A", BigDecimal.valueOf(50), "credit");
+        service.credit("A", BigDecimal.valueOf(50), "credit");
+        assertThatThrownBy(() -> service.credit("A", BigDecimal.valueOf(51), "credit"))
                 .isInstanceOf(IdempotencyConflictException.class);
         assertThat(count()).isEqualTo(1);
-        assertThat(service.getBalance("A")).isEqualTo(1050);
-        assertThatThrownBy(() -> service.debit("B", 101, "insufficient"))
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1050));
+        assertThatThrownBy(() -> service.debit("B", BigDecimal.valueOf(101), "insufficient"))
                 .isInstanceOf(InsufficientFundsException.class);
         assertThat(count()).isEqualTo(1);
     }
@@ -91,18 +92,18 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
                     outbox.record(transaction, primary, secondary);
                     throw new IllegalStateException("outbox write failure");
                 }));
-        assertThatThrownBy(() -> failing.transfer("A", "B", 20, "rollback"))
+        assertThatThrownBy(() -> failing.transfer("A", "B", BigDecimal.valueOf(20), "rollback"))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(service.getBalance("A")).isEqualTo(1000);
-        assertThat(service.getBalance("B")).isEqualTo(100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1000));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(100));
         assertThat(new JdbcIdempotencyStore(jdbc).find("rollback")).isEmpty();
         assertThat(count()).isZero();
     }
 
     @Test
     void brokerFailureRetainsStableEventAndStopsLaterSendsUntilRetry() throws Exception {
-        service.credit("A", 10, "first");
-        service.debit("A", 5, "second");
+        service.credit("A", BigDecimal.valueOf(10), "first");
+        service.debit("A", BigDecimal.valueOf(5), "second");
         var original = jdbc.queryForList("SELECT payload FROM kafka_outbox ORDER BY sequence_id", String.class);
         var kafka = mockKafka();
         when(kafka.send(anyString(), anyString(), anyString()))
@@ -123,7 +124,7 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void acknowledgementFollowedByDatabaseFailureRedeliversSameEventId() {
-        service.credit("A", 10, "commit-gap");
+        service.credit("A", BigDecimal.valueOf(10), "commit-gap");
         String payload = jdbc.queryForObject("SELECT payload FROM kafka_outbox", String.class);
         Long sequence = jdbc.queryForObject("SELECT sequence_id FROM kafka_outbox", Long.class);
         var kafka = mockKafka();
@@ -142,7 +143,7 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void separateRelaysSerializeDeliveryWithDatabaseLock() throws Exception {
-        for (int i = 0; i < 8; i++) service.credit("A", 1, "ordered-" + i);
+        for (int i = 0; i < 8; i++) service.credit("A", BigDecimal.valueOf(1), "ordered-" + i);
         var payloads = jdbc.queryForList("SELECT payload FROM kafka_outbox ORDER BY sequence_id", String.class);
         var kafka = mockKafka();
         when(kafka.send(anyString(), anyString(), anyString()))
@@ -165,7 +166,7 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void timeoutKeepsEventPending() {
-        service.credit("A", 10, "timeout");
+        service.credit("A", BigDecimal.valueOf(10), "timeout");
         var kafka = mockKafka();
         when(kafka.send(anyString(), anyString(), anyString())).thenReturn(new CompletableFuture<>());
         var fast = new KafkaEventProperties(properties.topic(), 2, Duration.ofMillis(10), 2, (short) 1, 1);
@@ -181,7 +182,7 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
             for (int i = 0; i < 16; i++) {
                 tasks.add(pool.submit(() -> {
                     start.await();
-                    service.transfer("A", "B", 20, "duplicate");
+                    service.transfer("A", "B", BigDecimal.valueOf(20), "duplicate");
                     return null;
                 }));
             }
@@ -189,8 +190,8 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
             for (var task : tasks) task.get(10, TimeUnit.SECONDS);
         }
         assertThat(count()).isEqualTo(2);
-        assertThat(service.getBalance("A")).isEqualTo(980);
-        assertThat(service.getBalance("B")).isEqualTo(120);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(980));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(120));
     }
 
     @Test
@@ -200,8 +201,8 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
         try (var consumer = new DefaultKafkaConsumerFactory<>(consumerProperties,
                 new StringDeserializer(), new StringDeserializer()).createConsumer()) {
             broker.consumeFromAnEmbeddedTopic(consumer, properties.topic());
-            service.transfer("A", "B", 20, transaction);
-            service.credit("A", 5, transaction + "-credit");
+            service.transfer("A", "B", BigDecimal.valueOf(20), transaction);
+            service.credit("A", BigDecimal.valueOf(5), transaction + "-credit");
             publisher.publishBatch();
             assertThat(count()).isZero();
             List<ConsumerRecord<String, String>> received = new ArrayList<>();
@@ -222,13 +223,13 @@ class KafkaOutboxIntegrationTest extends PostgresIntegrationTest {
                 assertThat(record.key()).isEqualTo(event.accountId());
                 if (event.accountId().equals("A")) aEvents.add(event);
                 else {
-                    assertThat(event.balance()).isEqualTo(120);
-                    assertThat(event.delta()).isEqualTo(20);
+                    assertThat(event.balance()).isEqualByComparingTo("120");
+                    assertThat(event.delta()).isEqualByComparingTo("20");
                     assertThat(event.counterpartyAccountId()).isEqualTo("A");
                 }
             }
-            assertThat(aEvents).extracting(BalanceChangedEvent::delta).containsExactly(-20L, 5L);
-            assertThat(aEvents).extracting(BalanceChangedEvent::balance).containsExactly(980L, 985L);
+            assertThat(aEvents).extracting(BalanceChangedEvent::delta).containsExactly(BigDecimal.valueOf(-20), BigDecimal.valueOf(5));
+            assertThat(aEvents).extracting(BalanceChangedEvent::balance).containsExactly(BigDecimal.valueOf(980), BigDecimal.valueOf(985));
         }
     }
 

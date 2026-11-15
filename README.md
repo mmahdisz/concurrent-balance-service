@@ -267,10 +267,13 @@ $env:RUN_REDIS_TESTS = "true"
 
 All request bodies are validated before service calls. Account IDs, destination
 IDs, and transaction IDs are required, must not be blank, and may contain at
-most 255 characters. Account path parameters follow the same rules. Amounts
-must be positive integers; initialBalance is required and must be a nonnegative
-integer. Missing or null amounts, fractions, and values outside the signed
-64-bit integer range are rejected. Transfers must use different accounts.
+most 255 characters. Account IDs and destination IDs may contain only ASCII letters,
+digits, `.`, `_`, `~`, and `-`, and cannot be `.` or `..`, so every accepted ID
+can be addressed in a URL path. Account path parameters follow the same rules. Amounts
+must be positive decimal numbers; initialBalance is required and must be nonnegative.
+Monetary values use BigDecimal and PostgreSQL NUMERIC without a fixed scale, so
+addition and subtraction preserve decimal precision without implicit rounding.
+Missing or null amounts and nonnumeric values are rejected. Transfers must use different accounts.
 
 Errors use application/problem+json and Spring Problem Detail fields: type,
 title, status, detail, and instance. The existing error and message fields are
@@ -295,7 +298,7 @@ field to a list of messages. Other errors return an empty fieldErrors object.
 | Condition | HTTP status | Error code |
 | --- | --- | --- |
 | Invalid or missing request fields or account path | 400 | VALIDATION_ERROR |
-| Malformed JSON, missing body, invalid numeric type or range | 400 | MALFORMED_REQUEST |
+| Malformed JSON, missing body, invalid numeric type | 400 | MALFORMED_REQUEST |
 | Same-account transfer | 400 | SAME_ACCOUNT_TRANSFER |
 | Domain amount validation | 400 | INVALID_AMOUNT |
 | Unknown account | 404 | ACCOUNT_NOT_FOUND |
@@ -381,7 +384,7 @@ Each record has the account ID as its Kafka key and a plain JSON value:
 }
 ~~~
 
-Amounts use the same integer units as the API. Credit/debit emit one event;
+Amounts use the same decimal monetary unit as the API. Credit/debit emit one event;
 transfer emits two events with distinct event IDs, one per affected account.
 `balance` is the balance immediately after that mutation. Transfer events share
 the transaction ID and do not become visible atomically across Kafka partitions.

@@ -1,8 +1,8 @@
 package com.challenge.balance.service;
 
+import java.math.BigDecimal;
 import com.challenge.balance.api.BalanceService;
 import com.challenge.balance.events.BalanceEventRecorder;
-import java.util.Optional;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.domain.Account;
 import com.challenge.balance.domain.TransactionRecord;
@@ -52,7 +52,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    public void credit(String accountId, long amount, String transactionId) {
+    public void credit(String accountId, BigDecimal amount, String transactionId) {
         validateAmount(amount);
         lockManager.withLock(accountId, () -> apply(TransactionRecord.credit(transactionId, accountId, amount), (account, ignored) -> {
             account.credit(amount);
@@ -61,7 +61,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    public void debit(String accountId, long amount, String transactionId) {
+    public void debit(String accountId, BigDecimal amount, String transactionId) {
         validateAmount(amount);
         lockManager.withLock(accountId, () -> apply(TransactionRecord.debit(transactionId, accountId, amount), (account, ignored) -> {
             checkFunds(account, amount);
@@ -71,7 +71,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    public void transfer(String sourceAccountId, String destinationAccountId, long amount, String transactionId) {
+    public void transfer(String sourceAccountId, String destinationAccountId, BigDecimal amount, String transactionId) {
         validateAmount(amount);
         if (sourceAccountId.equals(destinationAccountId)) {
             throw new SameAccountTransferException(sourceAccountId);
@@ -87,7 +87,7 @@ public class BalanceServiceImpl implements BalanceService {
     }
 
     @Override
-    public long getBalance(String accountId) {
+    public BigDecimal getBalance(String accountId) {
         return accountRepository.getOrThrow(accountId).getBalance();
     }
 
@@ -141,14 +141,14 @@ public class BalanceServiceImpl implements BalanceService {
         }).orElse(false);
     }
 
-    private void checkFunds(Account account, long amount) {
-        if (account.getBalance() < amount) {
+    private void checkFunds(Account account, BigDecimal amount) {
+        if (account.getBalance().compareTo(amount) < 0) {
             throw new InsufficientFundsException(account.getId(), amount, account.getBalance());
         }
     }
 
-    private void validateAmount(long amount) {
-        if (amount <= 0) {
+    private void validateAmount(BigDecimal amount) {
+        if (amount == null || amount.signum() <= 0) {
             throw new InvalidAmountException(amount);
         }
     }

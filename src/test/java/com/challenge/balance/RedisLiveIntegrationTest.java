@@ -1,5 +1,6 @@
 package com.challenge.balance;
 
+import java.math.BigDecimal;
 import com.challenge.balance.api.BalanceService;
 import com.challenge.balance.domain.TransactionRecord;
 import com.challenge.balance.exception.IdempotencyConflictException;
@@ -51,8 +52,8 @@ class RedisLiveIntegrationTest extends PostgresIntegrationTest {
     void setUp() {
         jdbc.update("DELETE FROM processed_transactions");
         jdbc.update("DELETE FROM accounts");
-        accounts.create("A", 1000);
-        accounts.create("B", 200);
+        accounts.create("A", BigDecimal.valueOf(1000));
+        accounts.create("B", BigDecimal.valueOf(200));
     }
 
     @AfterEach
@@ -62,22 +63,22 @@ class RedisLiveIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void realRedisStoresJsonAndRetainsRequestParameters() throws Exception {
-        service.transfer("A", "B", 300, "live-transfer");
+        service.transfer("A", "B", BigDecimal.valueOf(300), "live-transfer");
         String json = redis.opsForValue().get(key("live-transfer"));
         assertThat(json).isNotNull();
         TransactionRecord receipt = mapper.readValue(json, TransactionRecord.class);
-        assertThat(receipt.matches(com.challenge.balance.domain.OperationType.TRANSFER, "A", "B", 300)).isTrue();
+        assertThat(receipt.matches(com.challenge.balance.domain.OperationType.TRANSFER, "A", "B", BigDecimal.valueOf(300))).isTrue();
 
-        service.transfer("A", "B", 300, "live-transfer");
-        assertThatThrownBy(() -> service.transfer("A", "B", 301, "live-transfer"))
+        service.transfer("A", "B", BigDecimal.valueOf(300), "live-transfer");
+        assertThatThrownBy(() -> service.transfer("A", "B", BigDecimal.valueOf(301), "live-transfer"))
                 .isInstanceOf(IdempotencyConflictException.class);
-        assertThat(service.getBalance("A")).isEqualTo(700);
-        assertThat(service.getBalance("B")).isEqualTo(500);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(700));
+        assertThat(service.getBalance("B")).isEqualByComparingTo(BigDecimal.valueOf(500));
     }
 
     @Test
     void realRedisExpiryStillLeavesDurableDuplicateProtection() throws Exception {
-        service.credit("A", 100, "live-expiry");
+        service.credit("A", BigDecimal.valueOf(100), "live-expiry");
         String key = key("live-expiry");
         assertThat(redis.getExpire(key, TimeUnit.MILLISECONDS)).isBetween(1L, 2000L);
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
@@ -86,9 +87,9 @@ class RedisLiveIntegrationTest extends PostgresIntegrationTest {
         }
         assertThat(redis.hasKey(key)).isFalse();
 
-        service.credit("A", 100, "live-expiry");
+        service.credit("A", BigDecimal.valueOf(100), "live-expiry");
 
-        assertThat(service.getBalance("A")).isEqualTo(1100);
+        assertThat(service.getBalance("A")).isEqualByComparingTo(BigDecimal.valueOf(1100));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM processed_transactions", Integer.class)).isEqualTo(1);
         assertThat(redis.hasKey(key)).isTrue();
     }

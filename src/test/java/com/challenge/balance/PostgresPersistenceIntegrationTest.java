@@ -1,5 +1,6 @@
 package com.challenge.balance;
 
+import java.math.BigDecimal;
 import com.challenge.balance.api.BalanceService;
 import com.challenge.balance.concurrency.AccountLockManager;
 import com.challenge.balance.events.JdbcBalanceEventOutbox;
@@ -42,10 +43,10 @@ class PostgresPersistenceIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void migrationIsValidatedAndDoesNotRepeatOrLoseData() {
-        accounts.create("persistent", 42);
+        accounts.create("persistent", BigDecimal.valueOf(42));
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
-        assertThat(service.getBalance("persistent")).isEqualTo(42);
+        assertThat(service.getBalance("persistent")).isEqualByComparingTo(BigDecimal.valueOf(42));
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM kafka_outbox_lock", Integer.class)).isEqualTo(1);
     }
 
@@ -62,31 +63,35 @@ class PostgresPersistenceIntegrationTest extends PostgresIntegrationTest {
 
     @Test
     void transferWritesJsonEventsAndDurableReceiptExactlyOnce() throws Exception {
-        accounts.create("source", 100);
-        accounts.create("destination", 10);
-        service.transfer("source", "destination", 25, "transfer-json");
-        service.transfer("source", "destination", 25, "transfer-json");
+        accounts.create("source", BigDecimal.valueOf(100));
+        accounts.create("destination", BigDecimal.valueOf(10));
+        service.transfer("source", "destination", new BigDecimal("25.125"), "transfer-json");
+        service.transfer("source", "destination", new BigDecimal("25.1250"), "transfer-json");
+        assertThat(service.getBalance("source")).isEqualByComparingTo("74.875");
+        assertThat(service.getBalance("destination")).isEqualByComparingTo("35.125");
         var payloads = jdbc.queryForList("SELECT payload FROM kafka_outbox ORDER BY sequence_id", String.class);
         assertThat(payloads).hasSize(2);
-        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-        assertThat(mapper.readTree(payloads.getFirst()).get("balance").asLong()).isEqualTo(75);
-        assertThat(mapper.readTree(payloads.getLast()).get("balance").asLong()).isEqualTo(35);
-        assertThat(new JdbcIdempotencyStore(jdbc).find("transfer-json")).isPresent();
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper()
+                .enable(com.fasterxml.jackson.databind.DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS);
+        assertThat(mapper.readTree(payloads.getFirst()).get("balance").decimalValue()).isEqualByComparingTo("74.875");
+        assertThat(mapper.readTree(payloads.getLast()).get("balance").decimalValue()).isEqualByComparingTo("35.125");
+        assertThat(new JdbcIdempotencyStore(jdbc).find("transfer-json").orElseThrow().amount())
+                .isEqualByComparingTo("25.125");
     }
 
     @Test
     void outboxFailureRollsBackBalancesReceiptAndEvents() {
-        accounts.create("source", 100);
-        accounts.create("destination", 10);
+        accounts.create("source", BigDecimal.valueOf(100));
+        accounts.create("destination", BigDecimal.valueOf(10));
         var failing = new BalanceServiceImpl(accounts, new AccountLockManager(), new JdbcIdempotencyStore(jdbc),
                 manager, Optional.of((transaction, primary, secondary) -> {
                     outbox.record(transaction, primary, secondary);
                     throw new IllegalStateException("Simulated outbox failure");
                 }));
-        assertThatThrownBy(() -> failing.transfer("source", "destination", 25, "rollback-outbox"))
+        assertThatThrownBy(() -> failing.transfer("source", "destination", BigDecimal.valueOf(25), "rollback-outbox"))
                 .isInstanceOf(IllegalStateException.class);
-        assertThat(service.getBalance("source")).isEqualTo(100);
-        assertThat(service.getBalance("destination")).isEqualTo(10);
+        assertThat(service.getBalance("source")).isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(service.getBalance("destination")).isEqualByComparingTo(BigDecimal.valueOf(10));
         assertThat(new JdbcIdempotencyStore(jdbc).find("rollback-outbox")).isEmpty();
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM kafka_outbox", Integer.class)).isZero();
     }
