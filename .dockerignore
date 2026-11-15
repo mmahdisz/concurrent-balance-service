@@ -1,7 +1,21 @@
-# Only build inputs are sent to Docker; local databases, credentials, and IDE files stay out.
+# Send only build inputs; exclude dependencies, local data, and credentials.
 *
 !Dockerfile
 !.dockerignore
 !pom.xml
 !src/
 !src/**
+!frontend/
+frontend/*
+!frontend/package.json
+!frontend/package-lock.json
+!frontend/index.html
+!frontend/tsconfig.json
+!frontend/vite.config.ts
+!frontend/src/
+!frontend/src/**
+frontend/node_modules
+frontend/dist
+frontend/test-results
+frontend/playwright-report
+frontend/.env*

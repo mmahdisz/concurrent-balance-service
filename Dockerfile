@@ -1,5 +1,12 @@
 # syntax=docker/dockerfile:1
 
+FROM node:22-alpine AS frontend
+WORKDIR /ui
+COPY frontend/package*.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci
+COPY frontend/ ./
+RUN npm test && npm run build
+
 FROM maven:3.9.11-eclipse-temurin-21 AS build
 WORKDIR /workspace
 
@@ -7,6 +14,7 @@ COPY pom.xml ./
 RUN --mount=type=cache,target=/root/.m2 mvn --batch-mode --no-transfer-progress dependency:go-offline
 
 COPY src ./src
+COPY --from=frontend /ui/dist ./frontend/dist
 # Run the PostgreSQL integration suite on the host or CI before building.
 RUN --mount=type=cache,target=/root/.m2 mvn --batch-mode --no-transfer-progress -DskipTests package
 

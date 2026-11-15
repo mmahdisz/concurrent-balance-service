@@ -78,6 +78,8 @@ management:
           include: readinessState,db
 
 balance:
+  demo:
+    enabled: ${BALANCE_DEMO_ENABLED:false}
   kafka:
     enabled: ${BALANCE_KAFKA_ENABLED:false}
     # Provision production topics through infrastructure; Compose enables local creation.

@@ -3,6 +3,17 @@
 An account balance service supporting credit, debit, and transfer, with PostgreSQL
 persistence, concurrent updates, idempotent transaction IDs, and reliable Kafka balance events.
 
+## Interactive UI
+
+Balance Lab lives in [frontend](frontend/README.md). It provides an overview,
+account creation, credit/debit/transfers, paginated committed history, an API
+request inspector, and server-side concurrency experiments with correctness checks.
+
+Docker Compose builds both applications and serves the UI at http://localhost:8080.
+For development, run npm ci and npm run dev in frontend; the UI at
+http://localhost:5173 proxies the existing backend. See the frontend README for
+build, test, data semantics, and experiment configuration.
+
 ## Running
 
 Requires Java 21 and Docker with Linux containers. Run the default suite:
