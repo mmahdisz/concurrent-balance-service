@@ -9,6 +9,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.autoconfigure.actuate.observability.AutoConfigureObservability;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -21,12 +22,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = "balance.demo.enabled=true")
 @AutoConfigureMockMvc
+@AutoConfigureObservability
 class ConsoleIntegrationTest extends PostgresIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
     @Autowired AccountRepository accounts;
     @Autowired BalanceService service;
     @Autowired JdbcTemplate jdbc;
+
+    @Test
+    void exportsPrometheusMetricsAndAnExplicitDisabledMonitoringReport() throws Exception {
+        mvc.perform(get("/api/monitoring"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.enabled").value(false))
+                .andExpect(jsonPath("$.measurements").isEmpty());
+        mvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("jvm_memory_used_bytes")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("http_server_requests_seconds_bucket")));
+    }
 
     @Test
     void snapshotPreservesBigintAndFiltersBothTransferSides() throws Exception {

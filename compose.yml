@@ -18,6 +18,10 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       IDEMPOTENCY_REDIS_KEY_PREFIX: "${IDEMPOTENCY_REDIS_KEY_PREFIX:-balance-service:docker:idempotency:v1:}"
+      MONITORING_ENABLED: "true"
+      MONITORING_PLATFORM: docker
+      PROMETHEUS_URL: http://prometheus:9090
+      GRAFANA_PUBLIC_URL: "http://localhost:${GRAFANA_PORT:-3000}/d/balance-lab"
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,7 +104,50 @@ services:
       start_period: 20s
     restart: unless-stopped
 
+  prometheus:
+    image: quay.io/prometheus/prometheus:v3.16.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus", "--storage.tsdb.retention.time=7d", "--storage.tsdb.retention.size=1GB"]
+    ports:
+      - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus/docker.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    mem_limit: 512m
+
+  grafana:
+    image: grafana/grafana:12.4.13
+    ports:
+      - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/balance.yml:ro
+      - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/balance.yml:ro
+      - ./monitoring/grafana/balance-lab.json:/var/lib/grafana/dashboards/balance-lab.json:ro
+    restart: unless-stopped
+    mem_limit: 384m
+
+  cadvisor:
+    image: ghcr.io/google/cadvisor:0.60.4
+    privileged: true
+    # cAdvisor needs host access; only the exporter receives it, never the app.
+    command: ["--docker_only=true", "--housekeeping_interval=15s", "--store_container_labels=true"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+    restart: unless-stopped
+    mem_limit: 256m
+
 volumes:
   postgres-data:
   redis-data:
   kafka-data:
+  prometheus-data:
+  grafana-data:

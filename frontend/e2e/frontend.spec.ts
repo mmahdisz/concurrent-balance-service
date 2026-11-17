@@ -2,6 +2,10 @@ import { expect, test } from '@playwright/test';
 
 // Deterministic frontend contract tests. These fixtures are never shipped as live data.
 test.beforeEach(async ({ page }) => {
+  await page.route('**/api/monitoring', route => route.fulfill({ json: {
+    capturedAt: new Date().toISOString(), enabled: false, platform: 'local',
+    grafanaUrl: '', measurements: [], message: 'Monitoring is not configured.',
+  } }));
   await page.route('**/api/console/snapshot?*', route => route.fulfill({ json: {
     capturedAt: new Date().toISOString(), accountCount: 42, totalBalance: '9007199254740993.125000000000000001', receiptCount: 1,
     pendingEvents: 2, kafkaEnabled: true, labEnabled: true,
@@ -90,7 +94,7 @@ test('inline errors, uncertain outcome, stale snapshot and truthful evidence', a
   await page.unroute('**/api/console/snapshot?*');
   await page.route('**/api/console/snapshot?*', route => route.abort());
   await page.getByRole('button', { name: 'Refresh data' }).click();
-  await expect(page.getByRole('alert')).toContainText('Showing the last successful snapshot');
+  await expect(page.getByRole('alert').filter({ hasText: 'Showing the last successful snapshot' })).toBeVisible();
   await expect(page.locator('.connection')).toContainText('Stale');
 });
 

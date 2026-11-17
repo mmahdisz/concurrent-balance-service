@@ -68,7 +68,11 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        include: health,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
   endpoint:
     health:
       probes:
@@ -78,6 +82,11 @@ management:
           include: readinessState,db
 
 balance:
+  monitoring:
+    enabled: ${MONITORING_ENABLED:false}
+    platform: ${MONITORING_PLATFORM:local}
+    prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
+    grafana-url: ${GRAFANA_PUBLIC_URL:http://localhost:3000/d/balance-lab}
   demo:
     enabled: ${BALANCE_DEMO_ENABLED:false}
   kafka:

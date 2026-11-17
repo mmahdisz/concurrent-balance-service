@@ -4,6 +4,11 @@ React + TypeScript + Vite console for the existing Spring Boot balance service.
 TanStack Query refreshes consistent PostgreSQL snapshots every two seconds.
 No mock balances or fabricated infrastructure-health indicators are used.
 
+Technical monitoring reads `/api/monitoring` every 15 seconds for Prometheus
+app metrics and Docker container or Kubernetes pod/workload observations.
+Missing/stale evidence is explicit; the page links to a provisioned Grafana
+dashboard. See [monitoring setup and scope](../monitoring/README.md).
+
 ## Develop
 
 Requires Node 22 (Node 20.19+ also works), Java 21, and the existing PostgreSQL setup.
@@ -69,7 +74,8 @@ Hash navigation makes all UI views work without interfering with API routes.
   failed refresh are marked stale; pausing polling is labeled separately.
 - The request path and selectable structure map are source-based explanations.
   Monitoring distinguishes database observations from unknown cache/delivery
-  health. Metrics, trace/log evidence and a durable Kafka observer are not connected.
+  health. Prometheus metrics are available through the monitoring stack;
+  trace/log evidence and a durable Kafka observer are not connected.
 
 ## Concurrency experiments
 

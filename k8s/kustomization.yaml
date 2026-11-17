@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: concurrent-balance-service
+resources:
+  - namespace.yaml
+  - app.yaml
+  - postgres.yaml
+  - redis.yaml
+  - kafka.yaml
+  - ../monitoring
+configMapGenerator:
+  - name: balance-config
+    literals:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/balance
+      - SPRING_DATASOURCE_USERNAME=balance
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - 'IDEMPOTENCY_REDIS_KEY_PREFIX=balance-service:kubernetes:idempotency:v1:'
+      - BALANCE_DEMO_ENABLED=true
+      - BALANCE_KAFKA_ENABLED=true
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:19092
+      - BALANCE_KAFKA_CREATE_TOPIC=true
+      - BALANCE_KAFKA_REPLICAS=1
+      - BALANCE_KAFKA_MIN_IN_SYNC_REPLICAS=1
+      - SERVER_SHUTDOWN=graceful
+      - SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE=20s
+      - MONITORING_ENABLED=true
+      - MONITORING_PLATFORM=kubernetes
+      - PROMETHEUS_URL=http://prometheus:9090
+      - GRAFANA_PUBLIC_URL=http://localhost:3000/d/balance-lab
