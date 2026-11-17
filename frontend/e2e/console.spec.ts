@@ -1,4 +1,7 @@
 import { expect, test } from '@playwright/test';
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('balance-language', 'en'));
+});
 test('real accounts, transfer, replay, rejection, lab and API inspection', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -17,7 +20,7 @@ test('real accounts, transfer, replay, rejection, lab and API inspection', async
   await page.getByRole('link', { name: 'Transactions', exact: true }).click();
   await page.getByLabel('From account').fill(a);
   await page.getByLabel('To account').fill(b);
-  await page.getByLabel('Amount · whole units').fill('80');
+  await page.getByLabel('Amount · exact units').fill('80.125');
   const tx = await page.getByLabel('Transaction ID', { exact: true }).inputValue();
   await page.getByRole('button', { name: 'Submit transfer' }).click();
   await expect(page.getByRole('status')).toContainText('Acknowledged');
@@ -30,10 +33,10 @@ test('real accounts, transfer, replay, rejection, lab and API inspection', async
   await expect(page.getByRole('dialog')).toContainText('Committed transaction');
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: tx, exact: true })).toBeFocused();
-  await page.getByRole('button', { name: 'Generate a new transaction ID' }).click();
-  await page.getByLabel('Amount · whole units').fill('9999');
+  await page.getByRole('button', { name: 'New ID', exact: true }).click();
+  await page.getByLabel('Amount · exact units').fill('9999');
   await page.getByRole('button', { name: 'Submit transfer' }).click();
-  await expect(page.getByRole('status')).toContainText(/insufficient/i);
+  await expect(page.getByRole('alert')).toContainText(/insufficient/i);
   await page.getByRole('link', { name: 'API inspector', exact: true }).click();
   await expect(page.getByText('409', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Inspect', exact: false }).first().click();

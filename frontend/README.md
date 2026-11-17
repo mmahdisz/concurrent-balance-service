@@ -48,10 +48,14 @@ Hash navigation makes all UI views work without interfering with API routes.
 
 - Accounts and successful receipts come from PostgreSQL.
 - Monetary values in snapshot responses are decimal strings. Inputs are encoded
-  as exact BIGINT JSON literals; the browser never rounds balances through Number.
+  as exact decimal JSON literals; numeric monetary business responses are parsed
+  losslessly before ordinary JSON parsing can round them. No fixed currency,
+  scale, or BIGINT money limit is assumed.
 - Credit, debit, and transfer use the original /accounts API and transactionId
   field. Keep the ID when retrying an uncertain response; generate a new ID for a
-  new operation. Mutations are never retried automatically.
+  new operation. Editing a submitted payload generates a fresh ID unless explicit
+  conflict mode is enabled. Retry original payload resends the unchanged submission.
+  Mutations are never retried automatically.
 - The history includes successful receipts only. Rejected API requests appear in
   this tab's inspector. Idempotent acknowledgements do not create new receipts.
 - The inspector retains the last 100 explicit actions in memory, including exact
@@ -60,12 +64,20 @@ Hash navigation makes all UI views work without interfering with API routes.
   tab; it is not a historical server throughput series.
 - The outbox backlog counts pending database rows. Publishing enabled is a
   configuration flag, not a claim that Kafka is reachable.
+- Persian/RTL is the default, with an English option and persisted light/dark
+  themes and density. Times use UTC. Snapshots older than 10 seconds or with a
+  failed refresh are marked stale; pausing polling is labeled separately.
+- The request path and selectable structure map are source-based explanations.
+  Monitoring distinguishes database observations from unknown cache/delivery
+  health. Metrics, trace/log evidence and a durable Kafka observer are not connected.
 
 ## Concurrency experiments
 
 BALANCE_DEMO_ENABLED defaults to false outside Compose. Each run creates two
 unique lab-UUID accounts and executes bounded work in server threads. Existing
 balance, locking, receipt, Redis, and Kafka behavior is exercised unchanged.
+These are shared-stack demonstrations, not isolated infrastructure fault tests.
+The current API does not support cancellation or durable reproducible run reports.
 
 POST /api/demo/runs accepts scenario (COMPETING, DUPLICATE, OPPOSING, BURST),
 requests (2..100), and concurrency (2..16), returning 202 with a run ID.
@@ -98,13 +110,25 @@ npm test
 npm run build
 ~~~
 
-Browser tests exercise real accounts, transfers, replay, insufficient funds,
+For deterministic frontend tests against a Vite server, without a backend:
+
+~~~powershell
+# Start npm run dev in another terminal first.
+$env:UI_BASE_URL = "http://127.0.0.1:5173"
+npx playwright test e2e/frontend.spec.ts
+~~~
+
+These tests use HTTP fixtures only in the test process to cover decimal requests,
+retry/conflict semantics, field errors, unavailable evidence, themes, RTL, keyboard
+focus and all sections at 320px and desktop widths.
+
+Separate integration browser tests exercise real accounts, transfers, replay, insufficient funds,
 inspection, experiments, mobile layout, and connection recovery. Start a
 disposable backend with demo enabled, then:
 
 ~~~powershell
 $env:UI_BASE_URL = "http://localhost:18082"
-npm run test:e2e
+npx playwright test e2e/console.spec.ts
 ~~~
 
 The browser suite uses locally installed Chrome. It creates durable test

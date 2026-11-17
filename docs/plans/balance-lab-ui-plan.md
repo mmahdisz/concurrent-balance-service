@@ -1,14 +1,17 @@
 # Balance Lab: Educational UI and Observability Plan
 
-**Status: NOT IMPLEMENTED**  
+**Status: PARTIALLY IMPLEMENTED — frontend reviewed 2026-11-17**
 **Prepared: 2026-11-14**  
 **Purpose: Future implementation handoff for an educational project**
 
+See [the frontend review](balance-lab-ui-review.md) for implemented coverage, current contract decisions and remaining backend dependencies. The original phase checkboxes below remain historical planning items, not a claim of completion.
+
 This document records the proposed Balance Lab interface and its supporting APIs,
-observability, and test infrastructure. Creating this document does not implement
-or enable any feature. All implementation checkboxes below are intentionally
-unchecked. No application services or application tests were run to prepare this
-handoff. The earlier interactive design used fictional data and local interactions;
+observability, and test infrastructure. Its original 2026-11-14 preparation did not
+implement or enable features, and no application services or tests were run for
+that initial handoff. The phase checkboxes below are preserved from that handoff;
+use the linked review for current frontend coverage and validation. The earlier
+interactive design used fictional data and local interactions;
 its displayed health, throughput, latency, balances, and results are not measurements.
 
 This document is self-contained. Implementation must not depend on a previous chat,
@@ -376,7 +379,9 @@ telemetry overhead must not be misreported as service performance improvements.
 
 ## 8. Incremental implementation checklist
 
-All items are pending. Implement and verify one coherent phase at a time.
+These original phase items are retained for reference; current frontend coverage
+and outstanding backend work are recorded in the linked review. Implement and
+verify one coherent phase at a time.
 
 ### Phase 0: Reconcile the current contract
 
