@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1
+# Use BuildKit's bundled frontend so builds do not fetch docker/dockerfile.
 
 FROM node:22-alpine AS frontend
 WORKDIR /ui
