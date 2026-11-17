@@ -12,6 +12,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,9 +31,9 @@ class ConsoleIntegrationTest extends PostgresIntegrationTest {
     @Test
     void snapshotPreservesBigintAndFiltersBothTransferSides() throws Exception {
         String prefix = "console-" + UUID.randomUUID();
-        accounts.create(prefix + "A", 9007199254740993L);
-        accounts.create(prefix + "B", 0);
-        service.transfer(prefix + "A", prefix + "B", 7, prefix + "tx");
+        accounts.create(prefix + "A", new BigDecimal("9007199254740993"));
+        accounts.create(prefix + "B", BigDecimal.ZERO);
+        service.transfer(prefix + "A", prefix + "B", BigDecimal.valueOf(7), prefix + "tx");
         mvc.perform(get("/api/console/snapshot").param("account", prefix + "B"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.filteredReceiptCount").value(1))

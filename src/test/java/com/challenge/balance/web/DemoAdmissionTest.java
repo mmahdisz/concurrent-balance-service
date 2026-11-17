@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import java.math.BigDecimal;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import static org.assertj.core.api.Assertions.*;
@@ -18,7 +19,7 @@ class DemoAdmissionTest {
         var entered = new CountDownLatch(1);
         var release = new CountDownLatch(1);
         var accounts = mock(AccountRepository.class);
-        when(accounts.create(anyString(), anyLong())).thenAnswer(invocation -> {
+        when(accounts.create(anyString(), any(BigDecimal.class))).thenAnswer(invocation -> {
             entered.countDown();
             release.await(5, TimeUnit.SECONDS);
             throw new IllegalStateException("Simulated database failure");

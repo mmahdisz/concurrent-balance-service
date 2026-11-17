@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.*;
@@ -78,8 +79,8 @@ public class DemoController {
         boolean competing = request.scenario() == Scenario.COMPETING;
         long total = competing ? 100 : 2000;
         try (ExecutorService workers = Executors.newFixedThreadPool(Math.min(request.concurrency(), initial.requested()))) {
-            accounts.create(a, competing ? 100 : 1000);
-            accounts.create(b, competing ? 0 : 1000);
+            accounts.create(a, BigDecimal.valueOf(competing ? 100 : 1000));
+            accounts.create(b, BigDecimal.valueOf(competing ? 0 : 1000));
             CountDownLatch gate = new CountDownLatch(1);
             List<Future<Attempt>> futures = new ArrayList<>();
             for (int i = 0; i < initial.requested(); i++) {
@@ -94,7 +95,7 @@ public class DemoController {
                     long begin = System.nanoTime();
                     String outcome;
                     try {
-                        service.transfer(source, destination, amount, tx);
+                        service.transfer(source, destination, BigDecimal.valueOf(amount), tx);
                         outcome = "ACKNOWLEDGED";
                     } catch (InsufficientFundsException ex) {
                         outcome = "INSUFFICIENT_FUNDS";
@@ -109,7 +110,7 @@ public class DemoController {
             gate.countDown();
             List<Attempt> attempts = new ArrayList<>();
             for (Future<Attempt> future : futures) attempts.add(future.get());
-            long balanceA = service.getBalance(a), balanceB = service.getBalance(b);
+            BigDecimal balanceA = service.getBalance(a), balanceB = service.getBalance(b);
             long receipts = jdbc.queryForObject(
                     "SELECT COUNT(*) FROM processed_transactions WHERE primary_account_id IN (?, ?)",
                     Long.class, a, b);
@@ -124,10 +125,12 @@ public class DemoController {
             List<Double> durations = attempts.stream().map(Attempt::durationMs).sorted().toList();
             runs.put(initial.id(), new Result(initial.id(), "COMPLETED", request.scenario(),
                     initial.startedAt(), initial.requested(), acknowledged, rejected, errors, receipts,
-                    Map.of(a, Long.toString(balanceA), b, Long.toString(balanceB)),
-                    balanceA + balanceB == total, balanceA >= 0 && balanceB >= 0,
-                    errors == 0 && expectedOutcomes && receipts == expectedReceipts && balanceA == expectedA
-                            && balanceB == total - expectedA,
+                    Map.of(a, balanceA.toPlainString(), b, balanceB.toPlainString()),
+                    balanceA.add(balanceB).compareTo(BigDecimal.valueOf(total)) == 0,
+                    balanceA.signum() >= 0 && balanceB.signum() >= 0,
+                    errors == 0 && expectedOutcomes && receipts == expectedReceipts
+                            && balanceA.compareTo(BigDecimal.valueOf(expectedA)) == 0
+                            && balanceB.compareTo(BigDecimal.valueOf(total - expectedA)) == 0,
                     (System.nanoTime() - started) / 1_000_000.0,
                     durations.get((int) Math.ceil(durations.size() * .95) - 1), List.copyOf(attempts),
                     "Acknowledgements include idempotent replays. Receipts count unique committed effects."));
