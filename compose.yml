@@ -116,7 +116,8 @@ services:
     mem_limit: 512m
 
   grafana:
-    image: grafana/grafana:12.4.13
+    image: ${GRAFANA_IMAGE:-grafana/grafana:12.4.13}
+    pull_policy: missing
     ports:
       - "127.0.0.1:${GRAFANA_PORT:-3000}:3000"
     environment:

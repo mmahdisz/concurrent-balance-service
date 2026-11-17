@@ -49,6 +49,67 @@ Additional images are `quay.io/prometheus/prometheus:v3.16.0`, `grafana/grafana:
 `ghcr.io/google/cadvisor:0.60.4`. App builds also need base images and package
 downloads.
 
+### Grafana without Docker Hub
+
+For Linux amd64 (including this project's Windows Docker Desktop setup), build
+Grafana locally from its official standalone release instead of pulling its
+Docker Hub image:
+
+```powershell
+docker build --platform linux/amd64 -t balance-grafana:12.4.13 monitoring/grafana-local
+docker pull ghcr.io/google/cadvisor:0.60.4
+```
+
+Set `GRAFANA_IMAGE=balance-grafana:12.4.13` in `.env`, then run the normal command:
+
+```powershell
+docker compose up -d --pull never
+```
+
+The fallback uses a digest-pinned Prometheus BusyBox/glibc base from Quay and
+verifies Grafana's archive against its published SHA-256. It runs as UID/GID 472
+and supports the same provisioning files, environment settings, and persistent
+data paths. Quay and `dl.grafana.com` must be reachable to build it. This is a
+project-maintained fallback image, not Grafana's Docker image. ARM64 hosts need
+a matching archive and checksum; this fallback targets amd64 only.
+
+An `Interrupted` cAdvisor pull after another image fails does not mean cAdvisor
+is unavailable. Pull it separately as above. `--pull never` requires all images
+to be cached; omit it when other reachable registries still need downloading.
+
+If your cached app image predates monitoring, its `/api/monitoring` and
+`/actuator/prometheus` endpoints will return 404. When Docker Hub also blocks
+the normal app build, refresh the existing app runtime using a host-built JAR:
+
+```powershell
+# Build the current UI first (Node 22).
+npm --prefix frontend ci
+npm --prefix frontend run build
+.\mvnw.cmd package
+# Reuse the cached app image's Java runtime and healthcheck.
+docker build --pull=false -f deploy/app-local/Dockerfile -t concurrent-balance-service-app:latest target
+docker compose up -d --no-build --pull never
+```
+
+This fallback requires Java 21, a previously built
+`concurrent-balance-service-app:latest` image, and Maven/npm dependencies
+available locally or over the network. It updates application code and UI,
+while retaining the cached runtime's OS/JRE; rebuild with the normal Dockerfile
+when registry access is restored to update that runtime too. If using another
+Compose project name, pass its cached app image via `--build-arg RUNTIME_IMAGE`
+and set the output `-t` to the same project's app image tag.
+
+For Kubernetes, load `balance-grafana:12.4.13` onto each node as described in the
+[cluster guide](../k8s/README.md), then use the optional overlay:
+
+```powershell
+kubectl apply --dry-run=server -k deploy/local-grafana
+kubectl apply -k deploy/local-grafana
+```
+
+Source: [official Grafana archive](https://dl.grafana.com/oss/release/grafana-12.4.13.linux-amd64.tar.gz)
+and [published checksum](https://dl.grafana.com/oss/release/grafana-12.4.13.linux-amd64.tar.gz.sha256).
+
 ## Kubernetes
 
 Follow [the cluster guide](../k8s/README.md) for namespace, images, and storage.
